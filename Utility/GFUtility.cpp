@@ -10,12 +10,12 @@ namespace GFUtilitylocal
     uint8_t GFPow2_gen[GFSize];
     uint8_t GFLog2_gen[GFSize];
 
-    uint8_t Mul2(u_int8_t a)
+    uint8_t Mul2(u_int8_t A)
     {
-        if (a < GFSize / 2)
-            return a << 1;
+        if (A < GFSize / 2)
+            return A << 1;
 
-        return a << 1 ^ GeneratingPolynomial;
+        return A << 1 ^ GeneratingPolynomial;
     }
 }
 
@@ -65,29 +65,29 @@ static const uint8_t GF256Log2[] = {
 //    0, 0, 1, 3, 2, 6, 4, 5
 //};
 
-uint8_t GF256::Add(uint8_t a, uint8_t b)
+uint8_t GF256::Add(uint8_t A, uint8_t B)
 {
-    return a ^ b;
+    return A ^ B;
 }
 
-uint8_t GF256::Multiply(uint8_t a, uint8_t b)
+uint8_t GF256::Multiply(uint8_t A, uint8_t B)
 {
-    if (a == 0x0 || b == 0x0)
+    if (A == 0x0 || B == 0x0)
         return 0x0;
 
-    const uint8_t PowerSum = (GF256Log2[a] + GF256Log2[b]) % (GFSize - 1);
+    const uint8_t PowerSum = (GF256Log2[A] + GF256Log2[B]) % (GFSize - 1);
 
     return GF256Pow2[PowerSum];
 }
 
-uint8_t GF256::Divide(uint8_t a, uint8_t b)
+uint8_t GF256::Divide(uint8_t A, uint8_t B)
 {
-    assert(b != 0x0);
+    assert(B != 0x0);
 
-    if (a == 0x0)
+    if (A == 0x0)
         return 0x0;
 
-    int16_t PowerDiff = GF256Log2[a] - GF256Log2[b];
+    int16_t PowerDiff = GF256Log2[A] - GF256Log2[B];
     if (PowerDiff < 0)
         PowerDiff += GFSize - 1;
 
