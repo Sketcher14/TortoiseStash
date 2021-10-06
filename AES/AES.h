@@ -16,17 +16,21 @@ class AES
 public:
     AES(AESType Type);
 
-    void Encrypt(QString FilePath, QString HashPassword);
-    void Decrypt(QString FilePath, QString HashPassword);
+    void Encrypt(QString Input, QString HashPassword);
+    void Decrypt(QString Input, QString HashPassword);
 
 private:
-    static const int32_t Nb = 4;
+    inline static const int32_t Nb = 4;
 
     struct State {
-        uint8_t Word0[Nb] { 0x0, 0x0, 0x0, 0x0 };
-        uint8_t Word1[Nb] { 0x0, 0x0, 0x0, 0x0 };
-        uint8_t Word2[Nb] { 0x0, 0x0, 0x0, 0x0 };
-        uint8_t Word3[Nb] { 0x0, 0x0, 0x0, 0x0 };
+        inline static const int32_t RowNum = 4;
+
+        uint8_t Bytes[RowNum][Nb] = {
+            { 0x0, 0x0, 0x0, 0x0 },
+            { 0x0, 0x0, 0x0, 0x0 },
+            { 0x0, 0x0, 0x0, 0x0 },
+            { 0x0, 0x0, 0x0, 0x0 }
+        };
     };
 
     int32_t Nk = 0;
@@ -34,10 +38,19 @@ private:
 
     void calculateKeyExpansion(QString HashPassword);
 
+    void EncryptState(State& State);
+    void DecryptState(State& State);
+
     void AddRoundKey();
-    void ApplySubBytes();
-    void ApplyShiftRows();
-    void ApplyMixColumns();
+
+    void ApplySubBytes(State& State);
+    void AppplyInvSubBytes(State& State);
+
+    void ApplyShiftRows(State& State);
+    void ApplyInvShiftRows(State& State);
+
+    void ApplyMixColumns(State& State);
+    void ApplyInvMixColumns(State& State);
 };
 
 #endif // AES_H
