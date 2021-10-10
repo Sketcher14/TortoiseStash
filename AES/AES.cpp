@@ -1,18 +1,9 @@
 #include "AES.h"
-#include "Utility/SBoxTables.h"
+#include "Utility/AESUtility.h"
 
-#include <QVector>
 #include <algorithm>
-
-namespace AESLocal {
-    constexpr int32_t MixMatrixSize = 4;
-    uint8_t MixMatrix[MixMatrixSize][MixMatrixSize] = {
-        { 0x02, 0x03, 0x01, 0x01 },
-        { 0x01, 0x02, 0x03, 0x01 },
-        { 0x01, 0x01, 0x02, 0x03 },
-        { 0x03, 0x01, 0x01, 0x02 }
-    };
-}
+#include <numeric>
+#include <QVector>
 
 AES::AES(AESType Type)
 {
@@ -101,7 +92,7 @@ void AES::ApplySubBytes(State& State)
     {
         for (ssize_t j = 0; j < Nb; ++j)
         {
-            State.Bytes[i][j] = SBOX_TABLE::GetSubByte(State.Bytes[i][j]);
+            State.Bytes[i][j] = AESUtility::GetSubByte(State.Bytes[i][j]);
         }
     }
 }
@@ -112,7 +103,7 @@ void AES::AppplyInvSubBytes(AES::State &State)
     {
         for (ssize_t j = 0; j < Nb; ++j)
         {
-            State.Bytes[i][j] = SBOX_TABLE::GetInvSubByte(State.Bytes[i][j]);
+            State.Bytes[i][j] = AESUtility::GetInvSubByte(State.Bytes[i][j]);
         }
     }
 }
@@ -133,12 +124,43 @@ void AES::ApplyInvShiftRows(AES::State &State)
     }
 }
 
+void AES::CommonMixColumns(AES::State& State, const uint8_t (&Matrix)[4][4])
+{
+    for (ssize_t j = 0; j < Nb; ++j)
+    {
+        uint8_t StateColumn[State::RowNum] = { 0x0, 0x0, 0x0, 0x0 };
+        for (ssize_t i = 0; i < State::RowNum; ++i)
+        {
+            StateColumn[i] = State.Bytes[i][j];
+        }
+
+        for (ssize_t i = 0; i < State::RowNum; ++j)
+        {
+            State.Bytes[i][j] = AESUtility::DotProduct(StateColumn, Matrix[i], Nb);
+        }
+    }
+}
+
 void AES::ApplyMixColumns(State& State)
 {
+    static const uint8_t MixMatrix[4][4] = {
+        { 0x02, 0x03, 0x01, 0x01 },
+        { 0x01, 0x02, 0x03, 0x01 },
+        { 0x01, 0x01, 0x02, 0x03 },
+        { 0x03, 0x01, 0x01, 0x02 }
+    };
 
+    CommonMixColumns(State, MixMatrix);
 }
 
 void AES::ApplyInvMixColumns(AES::State &State)
 {
+    static const uint8_t InvMixMatrix[4][4] = {
+        { 0x0e, 0x0b, 0x0d, 0x09 },
+        { 0x09, 0x0e, 0x0b, 0x0d },
+        { 0x0d, 0x09, 0x0e, 0x0b },
+        { 0x0b, 0x0d, 0x09, 0x0e }
+    };
 
+    CommonMixColumns(State, InvMixMatrix);
 }

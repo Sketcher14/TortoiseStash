@@ -1,8 +1,8 @@
 #ifndef AES_H
 #define AES_H
 
-#include <QString>
 #include <stdint.h>
+#include <QString>
 
 enum class AESType {
     AES128,
@@ -49,6 +49,7 @@ private:
     void ApplyShiftRows(State& State);
     void ApplyInvShiftRows(State& State);
 
+    void CommonMixColumns(AES::State& State, const uint8_t (&Matrix)[4][4]);
     void ApplyMixColumns(State& State);
     void ApplyInvMixColumns(State& State);
 };

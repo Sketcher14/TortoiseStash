@@ -9,8 +9,8 @@ CONFIG += c++11
 SOURCES += \
         AES/AES.cpp \
         TortoiseStashApp.cpp \
+        Utility/AESUtility.cpp \
         Utility/GFUtility.cpp \
-        Utility/SBoxTables.cpp \
         main.cpp
 
 RESOURCES += qml.qrc
@@ -29,5 +29,5 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 HEADERS += \
     AES/AES.h \
     TortoiseStashApp.h \
-    Utility/GFUtility.h \
-    Utility/SBoxTables.h
+    Utility/AESUtility.h \
+    Utility/GFUtility.h
