@@ -1,9 +1,74 @@
 #include "AES.h"
 #include "Utility/AESUtility.h"
+#include "Utility/GFUtility.h"
 
 #include <algorithm>
 #include <numeric>
 #include <QVector>
+#include <QDebug>
+
+AES::Word AES::Word::operator^(const AES::Word &OtherWord)
+{
+    Word Result { 0x00, 0x00, 0x00, 0x00 };
+    for (ssize_t i = 0; i < AES::Word::ByteNum; ++i)
+    {
+        Result.Bytes[i] = Bytes[i] ^ OtherWord.Bytes[i];
+    }
+
+    return Result;
+}
+
+AES::Word& AES::Word::operator^=(const uint8_t (&Array)[4])
+{
+    for (ssize_t i = 0; i < AES::Word::ByteNum; ++i)
+    {
+        Bytes[i] ^= Array[i];
+    }
+
+    return *this;
+}
+
+AES::Word& AES::Word::Substitute()
+{
+    for (ssize_t i = 0; i < AES::Word::ByteNum; ++i)
+    {
+        Bytes[i] = AESUtility::GetSubByte(Bytes[i]);
+    }
+
+    return *this;
+}
+
+AES::Word& AES::Word::Rotate()
+{
+    std::rotate(Bytes, Bytes + 1, Bytes + AES::Word::ByteNum);
+
+    return *this;
+}
+
+void AES::Word::Print(int32_t i)
+{
+    QString Result = QString::number(i) + ": ";
+    for (ssize_t i = 0; i < AES::Word::ByteNum; ++i)
+    {
+        Result += QString::number(Bytes[i], 16) + ' ';
+    }
+    qDebug().noquote() << Result;
+}
+
+void AES::State::Print(int32_t Round, QString Operation)
+{
+    QString Result = "Round: " + QString::number(Round) + ", Operation: " + Operation + '\n';
+
+    for (ssize_t i = 0; i < AES::State::RowNum; ++i)
+    {
+        for (ssize_t j = 0; j < Nb; ++j)
+        {
+            Result += QString::number(Bytes[i][j], 16) + ' ';
+        }
+        Result += '\n';
+    }
+    qDebug().noquote() << Result;
+}
 
 AES::AES(AESType Type)
 {
@@ -13,6 +78,7 @@ AES::AES(AESType Type)
         {
             Nk = 4;
             Nr = 10;
+            HashAlgo = QCryptographicHash::Algorithm::Md5;
             break;
         }
         case AESType::AES192:
@@ -30,13 +96,39 @@ AES::AES(AESType Type)
     }
 }
 
-void AES::Encrypt(QString Input, QString HashPassword)
+QByteArray AES::Encrypt(const QString& Input, const QString& CipherKey)
 {
-    QByteArray InputBytes = Input.toUtf8();
+    QVector<State> States;
+    SplitInputByStates(States, Input.toUtf8());
 
+    QVector<Word> KeySchedule(Nb * (Nr + 1));
+    GenerateKeyExpansion(KeySchedule, CipherKey);
+
+    for (State& State : States)
+        EncryptState(State, KeySchedule);
+
+    return UnionStates(States);
+}
+
+QString AES::Decrypt(const QByteArray& InputBytes, const QString& CipherKey)
+{
+    QVector<State> States;
+    SplitInputByStates(States, InputBytes);
+
+    QVector<Word> KeySchedule(Nb * (Nr + 1));
+    GenerateKeyExpansion(KeySchedule, CipherKey);
+
+    for (State& State : States)
+        DecryptState(State, KeySchedule);
+
+    return UnionStates(States);
+}
+
+void AES::SplitInputByStates(QVector<AES::State>& States, const QByteArray& InputBytes)
+{
     const int32_t StateBytesCount = State::RowNum * Nb;
     const int32_t AmountStates = (InputBytes.size() + StateBytesCount - 1) / StateBytesCount;
-    QVector<State> States(AmountStates);
+    States.resize(AmountStates);
 
     ssize_t s = 0;
     ssize_t r = 0;
@@ -44,7 +136,7 @@ void AES::Encrypt(QString Input, QString HashPassword)
     for (ssize_t i = 0; i < InputBytes.size(); ++i)
     {
         States[s].Bytes[r][c] = InputBytes.at(i);
-        if (++r >= State::RowNum)
+        if (++r >= AES::State::RowNum)
         {
             if (++c >= Nb)
             {
@@ -54,41 +146,125 @@ void AES::Encrypt(QString Input, QString HashPassword)
             r = 0;
         }
     }
-
-    for (State& State : States)
-        EncryptState(State);
-
-    //union states and write to file
 }
 
-void AES::Decrypt(QString Input, QString HashPassword)
+void AES::GenerateKeyExpansion(QVector<Word>& KeySchedule, const QString& CipherKey)
 {
+    static const uint8_t Rcon[11][4] = {
+        { 0x00, 0x00, 0x00, 0x00 },
+        { 0x01, 0x00, 0x00, 0x00 },
+        { 0x02, 0x00, 0x00, 0x00 },
+        { 0x04, 0x00, 0x00, 0x00 },
+        { 0x08, 0x00, 0x00, 0x00 },
+        { 0x10, 0x00, 0x00, 0x00 },
+        { 0x20, 0x00, 0x00, 0x00 },
+        { 0x40, 0x00, 0x00, 0x00 },
+        { 0x80, 0x00, 0x00, 0x00 },
+        { 0x1b, 0x00, 0x00, 0x00 },
+        { 0x36, 0x00, 0x00, 0x00 },
+    };
 
+    QByteArray KeyHash = QCryptographicHash::hash(CipherKey.toUtf8(), HashAlgo);
+
+    assert(KeyHash.length() == Nk * AES::Word::ByteNum);
+
+    ssize_t i = 0;
+    while (i < Nk)
+    {
+        for (ssize_t j = 0; j < AES::Word::ByteNum; ++j)
+        {
+            KeySchedule[i].Bytes[j] = KeyHash.at(AES::Word::ByteNum * i + j);
+        }
+        ++i;
+    }
+
+    assert(i == Nk);
+
+    while (i < KeySchedule.length())
+    {
+        Word Temp = KeySchedule[i - 1];
+        if (i % Nk == 0)
+        {
+            Temp.Rotate().Substitute();
+            Temp ^= Rcon[i / Nk];
+        }
+        else if (Nk > 6 && (i % Nk == 4))
+        {
+            Temp.Substitute();
+        }
+        KeySchedule[i] = KeySchedule[i - Nk] ^ Temp;
+        ++i;
+    }
 }
 
-void AES::calculateKeyExpansion(QString HashPassword)
+QByteArray AES::UnionStates(QVector<AES::State>& States)
 {
+    QByteArray OutputBytes;
 
+    for (ssize_t s = 0; s < States.length(); ++s)
+    {
+        for (ssize_t j = 0; j < Nb; ++j)
+        {
+            for (ssize_t i = 0; i < AES::State::RowNum; ++i)
+            {
+                OutputBytes.append(States[s].Bytes[i][j]);
+            }
+        }
+    }
+
+    return OutputBytes;
 }
 
-void AES::EncryptState(AES::State &State)
+void AES::EncryptState(AES::State &State, const QVector<Word>& KeySchedule)
 {
+    int32_t Round = 0;
+    AddRoundKey(State, KeySchedule, Round);
 
+    for (Round = 1; Round < Nr; ++Round)
+    {
+        SubstituteBytes(State);
+        ShiftRows(State);
+        MixColumns(State);
+        AddRoundKey(State, KeySchedule, Round * Nb);
+    }
+
+    SubstituteBytes(State);
+    ShiftRows(State);
+    AddRoundKey(State, KeySchedule, Round * Nb);
 }
 
-void AES::DecryptState(AES::State &State)
+void AES::DecryptState(AES::State &State, const QVector<Word>& KeySchedule)
 {
+    int32_t Round = Nr;
+    AddRoundKey(State, KeySchedule, Round * Nb);
 
+    for (Round = Round - 1; Round > 0; --Round)
+    {
+        InvShiftRows(State);
+        InvSubstituteBytes(State);
+        AddRoundKey(State, KeySchedule, Round * Nb);
+        InvMixColumns(State);
+    }
+
+    InvShiftRows(State);
+    InvSubstituteBytes(State);
+    AddRoundKey(State, KeySchedule, Round);
 }
 
-void AES::AddRoundKey()
+void AES::AddRoundKey(AES::State& State, const QVector<AES::Word>& KeySchedule, int32_t Round)
 {
-
+    for (ssize_t i = 0; i < AES::State::RowNum; ++i)
+    {
+        for (ssize_t j = 0; j < Nb; ++j)
+        {
+            State.Bytes[i][j] ^= KeySchedule[Round + j].Bytes[i];
+        }
+    }
 }
 
-void AES::ApplySubBytes(State& State)
+void AES::SubstituteBytes(AES::State& State)
 {
-    for (ssize_t i = 0; i < State::RowNum; ++i)
+    for (ssize_t i = 0; i < AES::State::RowNum; ++i)
     {
         for (ssize_t j = 0; j < Nb; ++j)
         {
@@ -97,9 +273,9 @@ void AES::ApplySubBytes(State& State)
     }
 }
 
-void AES::AppplyInvSubBytes(AES::State &State)
+void AES::InvSubstituteBytes(AES::State &State)
 {
-    for (ssize_t i = 0; i < State::RowNum; ++i)
+    for (ssize_t i = 0; i < AES::State::RowNum; ++i)
     {
         for (ssize_t j = 0; j < Nb; ++j)
         {
@@ -108,17 +284,17 @@ void AES::AppplyInvSubBytes(AES::State &State)
     }
 }
 
-void AES::ApplyShiftRows(State& State)
+void AES::ShiftRows(State& State)
 {
-    for (ssize_t i = 1; i < State::RowNum; ++i)
+    for (ssize_t i = 1; i < AES::State::RowNum; ++i)
     {
         std::rotate(State.Bytes[i], State.Bytes[i] + i, State.Bytes[i] + Nb);
     }
 }
 
-void AES::ApplyInvShiftRows(AES::State &State)
+void AES::InvShiftRows(AES::State &State)
 {
-    for (ssize_t i = 1; i < State::RowNum; ++i)
+    for (ssize_t i = 1; i < AES::State::RowNum; ++i)
     {
         std::rotate(State.Bytes[i], State.Bytes[i] + (Nb - i) % Nb, State.Bytes[i] + Nb);
     }
@@ -128,20 +304,20 @@ void AES::CommonMixColumns(AES::State& State, const uint8_t (&Matrix)[4][4])
 {
     for (ssize_t j = 0; j < Nb; ++j)
     {
-        uint8_t StateColumn[State::RowNum] = { 0x0, 0x0, 0x0, 0x0 };
-        for (ssize_t i = 0; i < State::RowNum; ++i)
+        uint8_t StateColumn[AES::State::RowNum] = { 0x0, 0x0, 0x0, 0x0 };
+        for (ssize_t i = 0; i < AES::State::RowNum; ++i)
         {
             StateColumn[i] = State.Bytes[i][j];
         }
 
-        for (ssize_t i = 0; i < State::RowNum; ++j)
+        for (ssize_t i = 0; i < AES::State::RowNum; ++i)
         {
             State.Bytes[i][j] = AESUtility::DotProduct(StateColumn, Matrix[i], Nb);
         }
     }
 }
 
-void AES::ApplyMixColumns(State& State)
+void AES::MixColumns(AES::State& State)
 {
     static const uint8_t MixMatrix[4][4] = {
         { 0x02, 0x03, 0x01, 0x01 },
@@ -153,7 +329,7 @@ void AES::ApplyMixColumns(State& State)
     CommonMixColumns(State, MixMatrix);
 }
 
-void AES::ApplyInvMixColumns(AES::State &State)
+void AES::InvMixColumns(AES::State &State)
 {
     static const uint8_t InvMixMatrix[4][4] = {
         { 0x0e, 0x0b, 0x0d, 0x09 },
