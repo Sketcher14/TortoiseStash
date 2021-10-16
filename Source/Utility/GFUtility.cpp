@@ -1,7 +1,5 @@
 #include "GFUtility.h"
 
-#include <QDebug>
-
 constexpr uint16_t GFSize = 256;
 constexpr uint8_t IrreduciblePolynomial = 0x1b; // x^8 + x^4 + x^3 + x + 1
 
