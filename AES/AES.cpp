@@ -98,8 +98,11 @@ AES::AES(AESType Type)
 
 QByteArray AES::Encrypt(const QString& Input, const QString& CipherKey)
 {
+    QByteArray InputBytes = Input.toUtf8();
+    AddPKCS7Padding(InputBytes);
+
     QVector<State> States;
-    SplitInputByStates(States, Input.toUtf8());
+    SplitInputByStates(States, InputBytes);
 
     QVector<Word> KeySchedule(Nb * (Nr + 1));
     GenerateKeyExpansion(KeySchedule, CipherKey);
@@ -107,7 +110,10 @@ QByteArray AES::Encrypt(const QString& Input, const QString& CipherKey)
     for (State& State : States)
         EncryptState(State, KeySchedule);
 
-    return UnionStates(States);
+    QByteArray OutputBytes;
+    UnionStates(States, OutputBytes);
+
+    return OutputBytes;
 }
 
 QString AES::Decrypt(const QByteArray& InputBytes, const QString& CipherKey)
@@ -121,14 +127,36 @@ QString AES::Decrypt(const QByteArray& InputBytes, const QString& CipherKey)
     for (State& State : States)
         DecryptState(State, KeySchedule);
 
-    return UnionStates(States);
+    QByteArray OutputBytes;
+    UnionStates(States, OutputBytes);
+    RemovePKCS7Padding(OutputBytes);
+
+    return OutputBytes;
+}
+
+void AES::AddPKCS7Padding(QByteArray& InputBytes)
+{
+    const uint8_t PaddingByte = AES::State::StateBytesNum - (InputBytes.size() % AES::State::StateBytesNum);
+    if (PaddingByte < AES::State::StateBytesNum)
+    {
+        InputBytes.append(PaddingByte, PaddingByte);
+    }
+
+    assert(InputBytes.size() % AES::State::StateBytesNum == 0);
+}
+
+void AES::RemovePKCS7Padding(QByteArray& OutputBytes)
+{
+    const uint8_t LastByte = OutputBytes.back();
+    if (LastByte < AES::State::StateBytesNum)
+    {
+        OutputBytes.chop(LastByte);
+    }
 }
 
 void AES::SplitInputByStates(QVector<AES::State>& States, const QByteArray& InputBytes)
 {
-    const int32_t StateBytesCount = State::RowNum * Nb;
-    const int32_t AmountStates = (InputBytes.size() + StateBytesCount - 1) / StateBytesCount;
-    States.resize(AmountStates);
+    States.resize(InputBytes.size() / AES::State::StateBytesNum);
 
     ssize_t s = 0;
     ssize_t r = 0;
@@ -197,10 +225,8 @@ void AES::GenerateKeyExpansion(QVector<Word>& KeySchedule, const QString& Cipher
     }
 }
 
-QByteArray AES::UnionStates(QVector<AES::State>& States)
+void AES::UnionStates(const QVector<AES::State>& States, QByteArray& OutputBytes)
 {
-    QByteArray OutputBytes;
-
     for (ssize_t s = 0; s < States.length(); ++s)
     {
         for (ssize_t j = 0; j < Nb; ++j)
@@ -211,8 +237,6 @@ QByteArray AES::UnionStates(QVector<AES::State>& States)
             }
         }
     }
-
-    return OutputBytes;
 }
 
 void AES::EncryptState(AES::State &State, const QVector<Word>& KeySchedule)

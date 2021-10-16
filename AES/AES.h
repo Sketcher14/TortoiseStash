@@ -21,10 +21,10 @@ public:
     QString Decrypt(const QByteArray& InputBytes, const QString& CipherKey);
 
 private:
-    inline static const int32_t Nb = 4;
+    static constexpr int32_t Nb = 4;
 
     struct Word {
-        inline static const int32_t ByteNum = 4;
+        static constexpr int32_t ByteNum = 4;
 
         uint8_t Bytes[Nb] = { 0x0, 0x0, 0x0, 0x0 };
 
@@ -37,7 +37,8 @@ private:
     };
 
     struct State {
-        inline static const int32_t RowNum = 4;
+        static constexpr int32_t RowNum = 4;
+        static constexpr int32_t StateBytesNum = RowNum * Nb;
 
         uint8_t Bytes[RowNum][Nb] = {
             { 0x0, 0x0, 0x0, 0x0 },
@@ -53,9 +54,12 @@ private:
     int32_t Nr = 0;
     QCryptographicHash::Algorithm HashAlgo = QCryptographicHash::Algorithm::Md5;
 
+    void AddPKCS7Padding(QByteArray& InputBytes);
+    void RemovePKCS7Padding(QByteArray& OutputBytes);
+
     void SplitInputByStates(QVector<State>& States, const QByteArray& InputBytes);
     void GenerateKeyExpansion(QVector<Word>& KeySchedule, const QString& CipherKey);
-    QByteArray UnionStates(QVector<State>& States);
+    void UnionStates(const QVector<State>& States, QByteArray& OutputBytes);
 
     void EncryptState(State& State, const QVector<Word>& KeySchedule);
     void DecryptState(State& State, const QVector<Word>& KeySchedule);
