@@ -1,7 +1,5 @@
-#include "AESUtility.h"
-#include "GFUtility.h"
-
-#include <QDebug>
+#include "Utility/AESUtility.h"
+#include "Utility/GFUtility.h"
 
 namespace AESUtility {
     static const uint8_t SBox[] = {
@@ -56,7 +54,7 @@ namespace AESUtility {
     {
         uint8_t Result = 0x0;
 
-        for (ssize_t i = 0; i < N; ++i)
+        for (int32_t i = 0; i < N; ++i)
         {
             Result = GF256::Add(Result, GF256::Multiply(*(A + i), *(B + i)));
         }

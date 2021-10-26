@@ -11,6 +11,8 @@ INCLUDEPATH += Source/
 
 SOURCES += \
         AES/AES.cpp \
+        AES/State.cpp \
+        AES/Word.cpp \
         TortoiseStashApp.cpp \
         Utility/AESUtility.cpp \
         Utility/GFUtility.cpp \
@@ -31,6 +33,8 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 
 HEADERS += \
     AES/AES.h \
+    AES/State.h \
+    AES/Word.h \
     TortoiseStashApp.h \
     Utility/AESUtility.h \
     Utility/GFUtility.h

@@ -1,5 +1,7 @@
-#ifndef AES_H
-#define AES_H
+#pragma once
+
+#include "AES/Word.h"
+#include "AES/State.h"
 
 #include <stdint.h>
 #include <QString>
@@ -23,33 +25,6 @@ public:
 private:
     static constexpr int32_t Nb = 4;
 
-    struct Word {
-        static constexpr int32_t ByteNum = 4;
-
-        uint8_t Bytes[Nb] = { 0x0, 0x0, 0x0, 0x0 };
-
-        Word operator^ (const Word& OtherWord);
-        Word& operator^= (const uint8_t (&Array)[4]);
-
-        Word& Substitute();
-        Word& Rotate();
-        void Print(int32_t i);
-    };
-
-    struct State {
-        static constexpr int32_t RowNum = 4;
-        static constexpr int32_t StateBytesNum = RowNum * Nb;
-
-        uint8_t Bytes[RowNum][Nb] = {
-            { 0x0, 0x0, 0x0, 0x0 },
-            { 0x0, 0x0, 0x0, 0x0 },
-            { 0x0, 0x0, 0x0, 0x0 },
-            { 0x0, 0x0, 0x0, 0x0 }
-        };
-
-        void Print(int32_t Round, QString Operation);
-    };
-
     int32_t Nk = 0;
     int32_t Nr = 0;
     QCryptographicHash::Algorithm HashAlgo = QCryptographicHash::Algorithm::Md5;
@@ -63,18 +38,4 @@ private:
 
     void EncryptState(State& State, const QVector<Word>& KeySchedule);
     void DecryptState(State& State, const QVector<Word>& KeySchedule);
-
-    void AddRoundKey(State& State, const QVector<Word>& KeySchedule, int32_t Round);
-
-    void SubstituteBytes(State& State);
-    void InvSubstituteBytes(State& State);
-
-    void ShiftRows(State& State);
-    void InvShiftRows(State& State);
-
-    void CommonMixColumns(State& State, const uint8_t (&Matrix)[4][4]);
-    void MixColumns(State& State);
-    void InvMixColumns(State& State);
 };
-
-#endif // AES_H
