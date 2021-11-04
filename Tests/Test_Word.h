@@ -7,6 +7,7 @@ class Test_Word : public QObject
     Q_OBJECT
 
 private slots:
-    void test_case1();
+    void Test_Rotate();
+    void Test_Substitute();
 
 };

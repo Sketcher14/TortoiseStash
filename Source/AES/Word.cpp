@@ -3,6 +3,19 @@
 
 #include <algorithm>
 
+bool operator== (const Word& First, const Word& Second)
+{
+    for (int32_t i = 0; i < Word::ByteNum; ++i)
+    {
+        if (First.Bytes[i] != Second.Bytes[i])
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 Word Word::operator^(const Word& OtherWord)
 {
     Word Result { 0x00, 0x00, 0x00, 0x00 };

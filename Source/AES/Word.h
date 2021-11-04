@@ -7,6 +7,7 @@ struct Word {
 
     uint8_t Bytes[ByteNum] = { 0x0, 0x0, 0x0, 0x0 };
 
+    friend bool operator== (const Word& First, const Word& Second);
     Word operator^ (const Word& OtherWord);
     Word& operator^= (const uint8_t (&Array)[ByteNum]);
 
