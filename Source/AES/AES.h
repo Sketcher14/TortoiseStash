@@ -5,7 +5,6 @@
 
 #include <stdint.h>
 #include <QString>
-#include <QCryptographicHash>
 
 enum class AESType {
     AES128,
@@ -27,7 +26,7 @@ private:
 
     int32_t Nk = 0;
     int32_t Nr = 0;
-    QCryptographicHash::Algorithm HashAlgo = QCryptographicHash::Algorithm::Md5;
+    std::function<QByteArray(const QString&)> HashFunction;
 
     void AddPKCS7Padding(QByteArray& InputBytes);
     void RemovePKCS7Padding(QByteArray& OutputBytes);

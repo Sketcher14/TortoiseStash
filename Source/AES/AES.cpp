@@ -1,6 +1,7 @@
 #include "AES/AES.h"
 
 #include <QVector>
+#include <QCryptographicHash>
 
 AES::AES(AESType Type)
 {
@@ -10,19 +11,39 @@ AES::AES(AESType Type)
         {
             Nk = 4;
             Nr = 10;
-            HashAlgo = QCryptographicHash::Algorithm::Md5;
+
+            auto Hash128 = [](const QString& CipherKey) -> QByteArray
+            {
+                return QCryptographicHash::hash(CipherKey.toUtf8(), QCryptographicHash::Algorithm::Md5);
+            };
+
+            HashFunction = Hash128;
             break;
         }
         case AESType::AES192:
         {
             Nk = 6;
             Nr = 12;
+
+            auto Hash192 = [](const QString& CipherKey) -> QByteArray
+            {
+                return QCryptographicHash::hash(CipherKey.toUtf8(), QCryptographicHash::Algorithm::Sha384).left(24);
+            };
+
+            HashFunction = Hash192;
             break;
         }
         case AESType::AES256:
         {
             Nk = 8;
             Nr = 14;
+
+            auto Hash256 = [](const QString& CipherKey) -> QByteArray
+            {
+                return QCryptographicHash::hash(CipherKey.toUtf8(), QCryptographicHash::Algorithm::Sha256);
+            };
+
+            HashFunction = Hash256;
             break;
         }
     }
@@ -112,7 +133,7 @@ void AES::GenerateKeyExpansion(QVector<Word>& KeySchedule, const QString& Cipher
         { 0x36, 0x00, 0x00, 0x00 },
     };
 
-    QByteArray KeyHash = QCryptographicHash::hash(CipherKey.toUtf8(), HashAlgo);
+    QByteArray KeyHash = HashFunction(CipherKey);
 
     assert(KeyHash.length() == Nk * Word::ByteNum);
 
