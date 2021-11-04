@@ -1,6 +1,8 @@
+#pragma once
+
 #include <QtTest>
 
-class Test_AES256 : public QObject
+class Test_Word : public QObject
 {
     Q_OBJECT
 
