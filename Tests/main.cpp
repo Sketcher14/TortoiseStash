@@ -1,6 +1,6 @@
-#include "Test_AES128.h"
-#include "Test_AES192.h"
-#include "Test_AES256.h"
+#include "Test_State.h"
+#include "Test_AES.h"
+#include "Test_Word.h"
 
 #include <QtTest>
 
@@ -8,9 +8,9 @@ int main(int argc, char** argv)
 {
     int Status = 0;
 
-    Status |= QTest::qExec(new Test_AES128, argc, argv);
-    Status |= QTest::qExec(new Test_AES192, argc, argv);
-    Status |= QTest::qExec(new Test_AES256, argc, argv);
+    Status |= QTest::qExec(new Test_Word, argc, argv);
+    Status |= QTest::qExec(new Test_State, argc, argv);
+    Status |= QTest::qExec(new Test_AES, argc, argv);
 
    return Status;
 }
