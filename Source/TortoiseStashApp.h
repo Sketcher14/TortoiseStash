@@ -1,5 +1,4 @@
-#ifndef TORTOISESTASHAPP_H
-#define TORTOISESTASHAPP_H
+#pragma once
 
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
@@ -15,5 +14,3 @@ public:
 private:
     QQmlApplicationEngine Engine;
 };
-
-#endif // TORTOISESTASHAPP_H
