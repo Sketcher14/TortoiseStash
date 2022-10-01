@@ -6,35 +6,38 @@
 #include <stdint.h>
 #include <QString>
 
-enum class AESType {
-    AES128,
-    AES192,
-    AES256
-};
-
-
 class AES
 {
 public:
-    AES(AESType Type);
+    enum Type {
+        AES128,
+        AES192,
+        AES256
+    };
 
-    QByteArray Encrypt(const QString& Input, const QString& CipherKey);
-    QString Decrypt(const QByteArray& InputBytes, const QString& CipherKey);
+    static QByteArray Encrypt(const QString& Input, const QString& CipherKey, AES::Type Type);
+    static QString Decrypt(const QByteArray& InputBytes, const QString& CipherKey, AES::Type Type);
 
 private:
     static constexpr int32_t Nb = 4;
 
-    int32_t Nk = 0;
-    int32_t Nr = 0;
-    std::function<QByteArray(const QString&)> HashFunction;
+    struct Params {
+        int32_t Nk = 0;
+        int32_t Nr = 0;
+    };
 
-    void AddPKCS7Padding(QByteArray& InputBytes);
-    void RemovePKCS7Padding(QByteArray& OutputBytes);
+    static void PrepareKeyAndParams(const QString& CipherKey, AES::Type Type, QByteArray& KeyHash, AES::Params& Params);
 
-    void SplitInputByStates(QVector<State>& States, const QByteArray& InputBytes);
-    void GenerateKeyExpansion(QVector<Word>& KeySchedule, const QString& CipherKey);
-    void UnionStates(const QVector<State>& States, QByteArray& OutputBytes);
+    static QByteArray Encrypt(const QString& Input, const QByteArray& KeyHash, const AES::Params& Params);
+    static QString Decrypt(const QByteArray& InputBytes, const QByteArray& KeyHash, const AES::Params& Params);
 
-    void EncryptState(State& State, const QVector<Word>& KeySchedule);
-    void DecryptState(State& State, const QVector<Word>& KeySchedule);
+    static void AddPKCS7Padding(QByteArray& InputBytes);
+    static void RemovePKCS7Padding(QByteArray& OutputBytes);
+
+    static void SplitInputByStates(QVector<State>& States, const QByteArray& InputBytes);
+    static void GenerateKeyExpansion(QVector<Word>& KeySchedule, const QByteArray& KeyHash, const AES::Params& Params);
+    static void UnionStates(const QVector<State>& States, QByteArray& OutputBytes);
+
+    static void EncryptState(State& State, const QVector<Word>& KeySchedule, const AES::Params& Params);
+    static void DecryptState(State& State, const QVector<Word>& KeySchedule, const AES::Params& Params);
 };

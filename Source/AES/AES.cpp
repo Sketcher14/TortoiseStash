@@ -2,54 +2,59 @@
 
 #include <QVector>
 #include <QCryptographicHash>
+#include <QFile>
 
-AES::AES(AESType Type)
+QByteArray AES::Encrypt(const QString& Input, const QString& CipherKey, AES::Type Type)
+{
+    QByteArray KeyHash;
+    AES::Params Params;
+    PrepareKeyAndParams(CipherKey, Type, KeyHash, Params);
+
+    return Encrypt(Input, KeyHash, Params);
+}
+
+QString AES::Decrypt(const QByteArray& InputBytes, const QString& CipherKey, AES::Type Type)
+{
+    QByteArray KeyHash;
+    AES::Params Params;
+    PrepareKeyAndParams(CipherKey, Type, KeyHash, Params);
+
+    return Decrypt(InputBytes, KeyHash, Params);
+}
+
+void AES::PrepareKeyAndParams(const QString& CipherKey, AES::Type Type, QByteArray& KeyHash, AES::Params& Params)
 {
     switch (Type)
     {
-        case AESType::AES128:
+        case AES::Type::AES128:
         {
-            Nk = 4;
-            Nr = 10;
-
-            auto Hash128 = [](const QString& CipherKey) -> QByteArray
-            {
-                return QCryptographicHash::hash(CipherKey.toUtf8(), QCryptographicHash::Algorithm::Md5);
-            };
-
-            HashFunction = Hash128;
+            Params.Nk = 4;
+            Params.Nr = 10;
+            KeyHash = QCryptographicHash::hash(CipherKey.toUtf8(), QCryptographicHash::Algorithm::Md5);
             break;
         }
-        case AESType::AES192:
+        case AES::Type::AES192:
         {
-            Nk = 6;
-            Nr = 12;
-
-            auto Hash192 = [](const QString& CipherKey) -> QByteArray
-            {
-                return QCryptographicHash::hash(CipherKey.toUtf8(), QCryptographicHash::Algorithm::Sha384).left(24);
-            };
-
-            HashFunction = Hash192;
+            Params.Nk = 6;
+            Params.Nr = 12;
+            KeyHash = QCryptographicHash::hash(CipherKey.toUtf8(), QCryptographicHash::Algorithm::Sha384).left(24);
             break;
         }
-        case AESType::AES256:
+        case AES::Type::AES256:
         {
-            Nk = 8;
-            Nr = 14;
-
-            auto Hash256 = [](const QString& CipherKey) -> QByteArray
-            {
-                return QCryptographicHash::hash(CipherKey.toUtf8(), QCryptographicHash::Algorithm::Sha256);
-            };
-
-            HashFunction = Hash256;
+            Params.Nk = 8;
+            Params.Nr = 14;
+            KeyHash = QCryptographicHash::hash(CipherKey.toUtf8(), QCryptographicHash::Algorithm::Sha256);
             break;
+        }
+        default:
+        {
+            assert(false);
         }
     }
 }
 
-QByteArray AES::Encrypt(const QString& Input, const QString& CipherKey)
+QByteArray AES::Encrypt(const QString& Input, const QByteArray& KeyHash, const AES::Params& Params)
 {
     QByteArray InputBytes = Input.toUtf8();
     AddPKCS7Padding(InputBytes);
@@ -57,11 +62,11 @@ QByteArray AES::Encrypt(const QString& Input, const QString& CipherKey)
     QVector<State> States;
     SplitInputByStates(States, InputBytes);
 
-    QVector<Word> KeySchedule(Nb * (Nr + 1));
-    GenerateKeyExpansion(KeySchedule, CipherKey);
+    QVector<Word> KeySchedule(Nb * (Params.Nr + 1));
+    GenerateKeyExpansion(KeySchedule, KeyHash, Params);
 
     for (State& State : States)
-        EncryptState(State, KeySchedule);
+        EncryptState(State, KeySchedule, Params);
 
     QByteArray OutputBytes;
     UnionStates(States, OutputBytes);
@@ -69,16 +74,16 @@ QByteArray AES::Encrypt(const QString& Input, const QString& CipherKey)
     return OutputBytes;
 }
 
-QString AES::Decrypt(const QByteArray& InputBytes, const QString& CipherKey)
+QString AES::Decrypt(const QByteArray& InputBytes, const QByteArray& KeyHash, const AES::Params& Params)
 {
     QVector<State> States;
     SplitInputByStates(States, InputBytes);
 
-    QVector<Word> KeySchedule(Nb * (Nr + 1));
-    GenerateKeyExpansion(KeySchedule, CipherKey);
+    QVector<Word> KeySchedule(Nb * (Params.Nr + 1));
+    GenerateKeyExpansion(KeySchedule, KeyHash, Params);
 
     for (State& State : States)
-        DecryptState(State, KeySchedule);
+        DecryptState(State, KeySchedule, Params);
 
     QByteArray OutputBytes;
     UnionStates(States, OutputBytes);
@@ -117,7 +122,7 @@ void AES::SplitInputByStates(QVector<State>& States, const QByteArray& InputByte
     }
 }
 
-void AES::GenerateKeyExpansion(QVector<Word>& KeySchedule, const QString& CipherKey)
+void AES::GenerateKeyExpansion(QVector<Word>& KeySchedule, const QByteArray& KeyHash, const AES::Params& Params)
 {
     static const uint8_t Rcon[11][4] = {
         { 0x00, 0x00, 0x00, 0x00 },
@@ -133,12 +138,10 @@ void AES::GenerateKeyExpansion(QVector<Word>& KeySchedule, const QString& Cipher
         { 0x36, 0x00, 0x00, 0x00 },
     };
 
-    QByteArray KeyHash = HashFunction(CipherKey);
-
-    assert(KeyHash.length() == Nk * Word::ByteNum);
+    assert(KeyHash.length() == Params.Nk * Word::ByteNum);
 
     int32_t i = 0;
-    while (i < Nk)
+    while (i < Params.Nk)
     {
         for (int32_t j = 0; j < Word::ByteNum; ++j)
         {
@@ -147,21 +150,21 @@ void AES::GenerateKeyExpansion(QVector<Word>& KeySchedule, const QString& Cipher
         ++i;
     }
 
-    assert(i == Nk);
+    assert(i == Params.Nk);
 
     while (i < KeySchedule.length())
     {
         Word Temp = KeySchedule[i - 1];
-        if (i % Nk == 0)
+        if (i % Params.Nk == 0)
         {
             Temp.Rotate().Substitute();
-            Temp ^= Rcon[i / Nk];
+            Temp ^= Rcon[i / Params.Nk];
         }
-        else if (Nk > 6 && (i % Nk == 4))
+        else if (Params.Nk > 6 && (i % Params.Nk == 4))
         {
             Temp.Substitute();
         }
-        KeySchedule[i] = KeySchedule[i - Nk] ^ Temp;
+        KeySchedule[i] = KeySchedule[i - Params.Nk] ^ Temp;
         ++i;
     }
 }
@@ -174,12 +177,12 @@ void AES::UnionStates(const QVector<State>& States, QByteArray& OutputBytes)
     }
 }
 
-void AES::EncryptState(State& State, const QVector<Word>& KeySchedule)
+void AES::EncryptState(State& State, const QVector<Word>& KeySchedule, const AES::Params& Params)
 {
     int32_t Round = 0;
     State.AddRoundKey(KeySchedule, Round);
 
-    for (Round = 1; Round < Nr; ++Round)
+    for (Round = 1; Round < Params.Nr; ++Round)
     {
         State.SubstituteBytes();
         State.ShiftRows();
@@ -192,9 +195,9 @@ void AES::EncryptState(State& State, const QVector<Word>& KeySchedule)
     State.AddRoundKey(KeySchedule, Round * Nb);
 }
 
-void AES::DecryptState(State& State, const QVector<Word>& KeySchedule)
+void AES::DecryptState(State& State, const QVector<Word>& KeySchedule, const AES::Params& Params)
 {
-    int32_t Round = Nr;
+    int32_t Round = Params.Nr;
     State.AddRoundKey(KeySchedule, Round * Nb);
 
     for (Round = Round - 1; Round > 0; --Round)
