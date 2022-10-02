@@ -12,6 +12,7 @@ SOURCES += \
         AES/AES.cpp \
         AES/State.cpp \
         AES/Word.cpp \
+        CryptographicService.cpp \
         TortoiseStashApp.cpp \
         Utility/AESUtility.cpp \
         Utility/GFUtility.cpp \
@@ -34,6 +35,7 @@ HEADERS += \
     AES/AES.h \
     AES/State.h \
     AES/Word.h \
+    CryptographicService.h \
     TortoiseStashApp.h \
     Utility/AESUtility.h \
     Utility/GFUtility.h
